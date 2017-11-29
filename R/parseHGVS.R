@@ -78,6 +78,28 @@ parseHGVS <- function(strings,aacode=c(NA,1,3)) {
 	#     },matches=all.matches,x=x,SIMPLIFY=FALSE)
 	# }
 
+	###
+	# Helper function to split multi-mutant bodies into their individual 
+	# elements. Returns a vector of strings containing these elements. 
+	# An attribute "multi" is attached to the vector, detailing the type 
+	# of multi-mutant
+	# 
+	splitMulti <- function(body) {
+		if (regexpr("\\[.+\\];\\[.+\\]",body) > 0) {
+			out <- strsplit(substr(body,2,nchar(body)-1),"\\];\\[")[[1]]
+			attr(out,"multi") <- "trans"
+		} else if (regexpr("\\[.+\\(;\\).+\\]",body) > 0) {
+			out <- strsplit(substr(body,2,nchar(body)-1),"\\(;\\)")[[1]]
+			attr(out,"multi") <- "unknown"
+		} else if (regexpr("\\[.+;.+\\]",body) > 0) {
+			out <- strsplit(substr(body,2,nchar(body)-1),";")[[1]]
+			attr(out,"multi") <- "cis"
+		} else {
+			out <- body
+			attr(out,"multi") <- "single"
+		}
+		return(out)
+	}
 
 	###
 	# Helper function:
@@ -100,10 +122,12 @@ parseHGVS <- function(strings,aacode=c(NA,1,3)) {
 	out <- lapply(strings,function(s) {
 
 		if (regexpr("^[gcnmrp]\\.",s) < 1) {
-			return(list(hgvs=s,type="invalid"))
+			return(list(list(hgvs=s,subject="invalid",type="invalid")))
 		}
 
 		body <- substr(s,3,nchar(s))
+
+		subbodies <- splitMulti(body)
 
 		subjects <- c(
 			g="genomic",c="coding",n="noncoding",
@@ -121,78 +145,141 @@ parseHGVS <- function(strings,aacode=c(NA,1,3)) {
 				amplification="\\d+_\\d+\\[\\d+\\]"
 			)
 			
-			type <- findType(body,types)
+			phasing <- attr(subbodies,"multi")
+			isMulti <- length(subbodies) > 1
+			
+			lapply(1:length(subbodies), function(i.multi) {
+				body <- subbodies[[i.multi]]
 
-			if (type == "substitution") {
-				groups <- extract.groups(body,"(\\d+)([ACGT])>([ACGT])")[1,]
-				position <- as.integer(groups[[1]])
-				ancestral <- groups[[2]]
-				variant <- groups[[3]]
-				return(list(hgvs=s,subject=subject,type=type,start=position,
-					ancestral=ancestral,variant=variant))
+				type <- findType(body,types)
 
-			} else if (type == "singledeletion") {
-				groups <- extract.groups(body,"(\\d+)del")[1,]
-				position <- as.integer(groups[[1]])
-				return(list(hgvs=s,subject=subject,type=type,start=position))
+				if (type == "substitution") {
+					groups <- extract.groups(body,"(\\d+)([ACGT])>([ACGT])")[1,]
+					position <- as.integer(groups[[1]])
+					ancestral <- groups[[2]]
+					variant <- groups[[3]]
+					if (isMulti) {
+						return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+							type=type,start=position,ancestral=ancestral,variant=variant))
+					} else {
+						return(list(hgvs=s,subject=subject,type=type,start=position,
+							ancestral=ancestral,variant=variant))
+					}
 
-			} else if (type == "deletion") {
-				groups <- extract.groups(body,"(\\d+)_(\\d+)del")
-				start <- as.integer(groups[[1]])
-				end <- as.integer(groups[[2]])
-				return(list(hgvs=s,subject=subject,type=type,start=start,end=end))
+				} else if (type == "singledeletion") {
+					groups <- extract.groups(body,"(\\d+)del")[1,]
+					position <- as.integer(groups[[1]])
+					if (isMulti) {
+						return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+							type=type,start=position))
+					} else {
+						return(list(hgvs=s,subject=subject,type=type,start=position))
+					}
 
-			} else if (type == "inversion") {
-				groups <- extract.groups(body,"(\\d+)_(\\d+)inv")
-				start <- as.integer(groups[[1]])
-				end <- as.integer(groups[[2]])
-				return(list(hgvs=s,subject=subject,type=type,start=start,end=end))
+				} else if (type == "deletion") {
+					groups <- extract.groups(body,"(\\d+)_(\\d+)del")
+					start <- as.integer(groups[[1]])
+					end <- as.integer(groups[[2]])
+					if (isMulti) {
+						return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+							type=type,start=start,end=end))
+					} else {
+						return(list(hgvs=s,subject=subject,type=type,start=start,end=end))
+					}
 
-			} else if (type == "duplication") {
-				groups <- extract.groups(body,"(\\d+)_(\\d+)dup")
-				start <- as.integer(groups[[1]])
-				end <- as.integer(groups[[2]])
-				return(list(hgvs=s,subject=subject,type=type,start=start,end=end))
+				} else if (type == "inversion") {
+					groups <- extract.groups(body,"(\\d+)_(\\d+)inv")
+					start <- as.integer(groups[[1]])
+					end <- as.integer(groups[[2]])
+					if (isMulti) {
+						return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+							type=type,start=start,end=end))
+					} else {
+						return(list(hgvs=s,subject=subject,type=type,start=start,end=end))
+					}
 
-			} else if (type == "insertion") {
-				groups <- extract.groups(body,"(\\d+)_(\\d+)ins([ATCG]+)")
-				start <- as.integer(groups[[1]])
-				end <- as.integer(groups[[2]])
-				if (abs(end-start)!=1) {
-					warning("Invalid insertion definition: 
-						Start and end positions must be adjacent!")
+				} else if (type == "duplication") {
+					groups <- extract.groups(body,"(\\d+)_(\\d+)dup")
+					start <- as.integer(groups[[1]])
+					end <- as.integer(groups[[2]])
+					if (isMulti) {
+						return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+							type=type,start=start,end=end))
+					} else {
+						return(list(hgvs=s,subject=subject,type=type,start=start,end=end))
+					}
+
+				} else if (type == "insertion") {
+					groups <- extract.groups(body,"(\\d+)_(\\d+)ins([ATCG]+)")
+					start <- as.integer(groups[[1]])
+					end <- as.integer(groups[[2]])
+					if (abs(end-start)!=1) {
+						warning("Invalid insertion definition: 
+							Start and end positions must be adjacent!")
+					}
+					variant <- groups[[3]]
+					if (isMulti) {
+						return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+							type=type,start=start,end=end,variant=variant))
+					} else {
+						return(list(hgvs=s,subject=subject,type=type,start=start,end=end,
+							variant=variant))
+					}
+
+				} else if (type == "conversion") {
+					groups <- extract.groups(body,"(\\d+)_(\\d+)con(\\d+)_(\\d+)")
+					start <- as.integer(groups[[1]])
+					end <- as.integer(groups[[2]])
+					tStart <- as.integer(groups[[3]])
+					tEnd <- as.integer(groups[[4]])
+					if (isMulti) {
+						return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+							type=type,start=start,end=end,
+							templateStart=tStart,templateEnd=tEnd))
+					} else {
+						return(list(hgvs=s,subject=subject,type=type,start=start,end=end,
+							templateStart=tStart,templateEnd=tEnd))
+					}
+
+				} else if (type == "delins") {
+					groups <- extract.groups(body,"(\\d+)_(\\d+)delins([ATCG]+)")
+					start <- as.integer(groups[[1]])
+					end <- as.integer(groups[[2]])
+					variant <- groups[[3]]
+					if (isMulti) {
+						return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+							type=type,start=start,end=end,variant=variant))
+					} else {
+						return(list(hgvs=s,subject=subject,type=type,start=start,end=end,
+							variant=variant))
+					}
+
+				} else if (type == "amplification") {
+					groups <- extract.groups(body,"(\\d+)_(\\d+)\\[(\\d+)\\]")
+					start <- as.integer(groups[[1]])
+					end <- as.integer(groups[[2]])
+					copies <- as.integer(groups[[3]])
+					if (isMulti) {
+						return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+							type=type,start=start,end=end,copies=copies))
+					} else {
+						return(list(hgvs=s,subject=subject,type=type,
+							start=start,end=end,copies=copies))
+					}
+
+				} else {
+					if (isMulti) {
+						return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,type="invalid"))
+					} else {
+						return(list(hgvs=s,subject=subject,type="invalid"))
+					}
 				}
-				variant <- groups[[3]]
-				return(list(hgvs=s,subject=subject,type=type,start=start,end=end,variant=variant))
 
-			} else if (type == "conversion") {
-				groups <- extract.groups(body,"(\\d+)_(\\d+)con(\\d+)_(\\d+)")
-				start <- as.integer(groups[[1]])
-				end <- as.integer(groups[[2]])
-				tStart <- as.integer(groups[[3]])
-				tEnd <- as.integer(groups[[4]])
-				return(list(hgvs=s,subject=subject,type=type,start=start,end=end,
-					templateStart=tStart,templateEnd=tEnd))
-
-			} else if (type == "delins") {
-				groups <- extract.groups(body,"(\\d+)_(\\d+)delins([ATCG]+)")
-				start <- as.integer(groups[[1]])
-				end <- as.integer(groups[[2]])
-				variant <- groups[[3]]
-				return(list(hgvs=s,subject=subject,type=type,start=start,end=end,variant=variant))
-
-			} else if (type == "amplification") {
-				groups <- extract.groups(body,"(\\d+)_(\\d+)\\[(\\d+)\\]")
-				start <- as.integer(groups[[1]])
-				end <- as.integer(groups[[2]])
-				copies <- as.integer(groups[[3]])
-				return(list(hgvs=s,subject=subject,type=type,start=start,end=end,copies=copies))
-
-			} else {
-				return(list(hgvs=s,type="invalid"))
-			}
+			})
 
 		} else if (subject=="coding") {
+			#coding needs to be handled separately from genomic, as the syntax may differ
+			#e.g. it allows for offset descriptions relative to exon-intron borders
 
 			types <- c(
 				substitution="\\d+([+-]\\d+)?[ACGT]>[ACGT]", 
@@ -206,98 +293,160 @@ parseHGVS <- function(strings,aacode=c(NA,1,3)) {
 				amplification="\\d+([+-]\\d+)?_\\d+([+-]\\d+)?\\[\\d+\\]"
 			)
 			
-			type <- findType(body,types)
+			phasing <- attr(subbodies,"multi")
+			isMulti <- length(subbodies) > 1
+			
+			lapply(1:length(subbodies), function(i.multi) {
+				body <- subbodies[[i.multi]]
 
-			if (type == "substitution") {
-				groups <- extract.groups(body,"(\\d+)([+-]\\d+)?([ACGT])>([ACGT])")[1,]
-				position <- as.integer(groups[[1]])
-				intronOffset <- as.integer(groups[[2]])
-				ancestral <- groups[[3]]
-				variant <- groups[[4]]
-				return(list(hgvs=s,subject=subject,type=type,start=position,
-					startIntron=intronOffset,ancestral=ancestral,variant=variant))
+				type <- findType(body,types)
 
-			} else if (type == "singledeletion") {
-				groups <- extract.groups(body,"(\\d+)([+-]\\d+)?del")[1,]
-				position <- as.integer(groups[[1]])
-				intronOffset <- as.integer(groups[[2]])
-				return(list(hgvs=s,subject=subject,type=type,start=position,startIntron=intronOffset))
+				if (type == "substitution") {
+					groups <- extract.groups(body,"(\\d+)([+-]\\d+)?([ACGT])>([ACGT])")[1,]
+					position <- as.integer(groups[[1]])
+					intronOffset <- as.integer(groups[[2]])
+					ancestral <- groups[[3]]
+					variant <- groups[[4]]
+					if (isMulti) {
+						return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+						type=type,start=position,startIntron=intronOffset,ancestral=ancestral,
+						variant=variant))
+					} else {
+						return(list(hgvs=s,subject=subject,type=type,start=position,
+						startIntron=intronOffset,ancestral=ancestral,variant=variant))
+					}
 
-			} else if (type == "deletion") {
-				groups <- extract.groups(body,"(\\d+)([+-]\\d+)?_(\\d+)([+-]\\d+)?del")
-				start <- as.integer(groups[[1]])
-				intronOffset <- as.integer(groups[[2]])
-				end <- as.integer(groups[[3]])
-				intronOffset2 <- as.integer(groups[[4]])
-				return(list(hgvs=s,subject=subject,type=type,start=start,startIntron=intronOffset,
-					end=end,endIntron=intronOffset2))
+				} else if (type == "singledeletion") {
+					groups <- extract.groups(body,"(\\d+)([+-]\\d+)?del")[1,]
+					position <- as.integer(groups[[1]])
+					intronOffset <- as.integer(groups[[2]])
+					if (isMulti) {
+						return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+							type=type,start=position,startIntron=intronOffset))
+					} else {
+						return(list(hgvs=s,subject=subject,type=type,start=position,
+							startIntron=intronOffset))
+					}
+				} else if (type == "deletion") {
+					groups <- extract.groups(body,"(\\d+)([+-]\\d+)?_(\\d+)([+-]\\d+)?del")
+					start <- as.integer(groups[[1]])
+					intronOffset <- as.integer(groups[[2]])
+					end <- as.integer(groups[[3]])
+					intronOffset2 <- as.integer(groups[[4]])
+					if (isMulti) {
+						return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+							type=type,start=start,startIntron=intronOffset,
+							end=end,endIntron=intronOffset2))
+					} else {
+						return(list(hgvs=s,subject=subject,type=type,start=start,
+							startIntron=intronOffset,end=end,endIntron=intronOffset2))
+					}
+				} else if (type == "inversion") {
+					groups <- extract.groups(body,"(\\d+)([+-]\\d+)?_(\\d+)([+-]\\d+)?inv")
+					start <- as.integer(groups[[1]])
+					intronOffset <- as.integer(groups[[2]])
+					end <- as.integer(groups[[3]])
+					intronOffset2 <- as.integer(groups[[4]])
+					if (isMulti) {
+						return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+							type=type,start=start,startIntron=intronOffset,
+							end=end,endIntron=intronOffset2))
+					} else {
+						return(list(hgvs=s,subject=subject,type=type,start=start,
+							startIntron=intronOffset,end=end,endIntron=intronOffset2))
+					}
+				} else if (type == "duplication") {
+					groups <- extract.groups(body,"(\\d+)([+-]\\d+)?_(\\d+)([+-]\\d+)?dup")
+					start <- as.integer(groups[[1]])
+					intronOffset <- as.integer(groups[[2]])
+					end <- as.integer(groups[[3]])
+					intronOffset2 <- as.integer(groups[[4]])
+					if (isMulti) {
+						return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+							type=type,start=start,startIntron=intronOffset,
+							end=end,endIntron=intronOffset2))
+					} else {
+						return(list(hgvs=s,subject=subject,type=type,start=start,
+							startIntron=intronOffset,end=end,endIntron=intronOffset2))
+					}
+				} else if (type == "insertion") {
+					groups <- extract.groups(body,"(\\d+)([+-]\\d+)?_(\\d+)([+-]\\d+)?ins([ATCG]+)")
+					start <- as.integer(groups[[1]])
+					intronOffset <- as.integer(groups[[2]])
+					end <- as.integer(groups[[3]])
+					intronOffset2 <- as.integer(groups[[4]])
+					variant <- groups[[5]]
+					if (isMulti) {
+						return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+							type=type,start=start,startIntron=intronOffset,
+							end=end,endIntron=intronOffset2,variant=variant))
+					} else {
+						return(list(hgvs=s,subject=subject,type=type,start=start,
+							startIntron=intronOffset,end=end,endIntron=intronOffset2,variant=variant))
+					}
+				} else if (type == "conversion") {
+					groups <- extract.groups(body,"(\\d+)([+-]\\d+)?_(\\d+)([+-]\\d+)?con(\\d+)([+-]\\d+)?_(\\d+)([+-]\\d+)?")
+					start <- as.integer(groups[[1]])
+					intronOffset <- as.integer(groups[[2]])
+					end <- as.integer(groups[[3]])
+					intronOffset2 <- as.integer(groups[[4]])
+					tStart <- as.integer(groups[[5]])
+					intronOffset3 <- as.integer(groups[[6]])
+					tEnd <- as.integer(groups[[7]])
+					intronOffset4 <- as.integer(groups[[8]])
+					if (isMulti) {
+						return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+							type=type,start=start,startIntron=intronOffset,
+							end=end,endIntron=intronOffset2,templateStart=tStart,
+							templateStartIntron=intronOffset3,templateEnd=tEnd,
+							templateEndIntron=intronOffset4))
+					} else {
+						return(list(hgvs=s,subject=subject,type=type,
+							start=start,startIntron=intronOffset,
+							end=end,endIntron=intronOffset2,templateStart=tStart,
+							templateStartIntron=intronOffset3,templateEnd=tEnd,
+							templateEndIntron=intronOffset4))
+					}
+				} else if (type == "delins") {
+					groups <- extract.groups(body,"(\\d+)([+-]\\d+)?_(\\d+)([+-]\\d+)?delins([ATCG]+)")
+					start <- as.integer(groups[[1]])
+					intronOffset <- as.integer(groups[[2]])
+					end <- as.integer(groups[[3]])
+					intronOffset2 <- as.integer(groups[[4]])
+					variant <- groups[[5]]
+					if (isMulti) {
+						return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+							type=type,start=start,startIntron=intronOffset,
+							end=end,endIntron=intronOffset2,variant=variant))
+					} else {
+						return(list(hgvs=s,subject=subject,type=type,start=start,
+							startIntron=intronOffset,end=end,endIntron=intronOffset2,variant=variant))
+					}
+				} else if (type == "amplification") {
+					groups <- extract.groups(body,"(\\d+)([+-]\\d+)?_(\\d+)([+-]\\d+)?\\[(\\d+)\\]")
+					start <- as.integer(groups[[1]])
+					intronOffset <- as.integer(groups[[2]])
+					end <- as.integer(groups[[3]])
+					intronOffset2 <- as.integer(groups[[4]])
+					copies <- as.integer(groups[[3]])
+					if (isMulti) {
+						return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+							type=type,start=start,startIntron=intronOffset,
+							end=end,endIntron=intronOffset2,copies=copies))
+					} else {
+						return(list(hgvs=s,subject=subject,type=type,start=start,
+							startIntron=intronOffset,end=end,endIntron=intronOffset2,copies=copies))
+					}
+				} else {
+					if (isMulti) {
+						return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+							type="invalid"))
+					} else {
+						return(list(hgvs=s,subject=subject,type="invalid"))
+					}
+				}
 
-			} else if (type == "inversion") {
-				groups <- extract.groups(body,"(\\d+)([+-]\\d+)?_(\\d+)([+-]\\d+)?inv")
-				start <- as.integer(groups[[1]])
-				intronOffset <- as.integer(groups[[2]])
-				end <- as.integer(groups[[3]])
-				intronOffset2 <- as.integer(groups[[4]])
-				return(list(hgvs=s,subject=subject,type=type,start=start,startIntron=intronOffset,
-					end=end,endIntron=intronOffset2))
-
-			} else if (type == "duplication") {
-				groups <- extract.groups(body,"(\\d+)([+-]\\d+)?_(\\d+)([+-]\\d+)?dup")
-				start <- as.integer(groups[[1]])
-				intronOffset <- as.integer(groups[[2]])
-				end <- as.integer(groups[[3]])
-				intronOffset2 <- as.integer(groups[[4]])
-				return(list(hgvs=s,subject=subject,type=type,start=start,startIntron=intronOffset,
-					end=end,endIntron=intronOffset2))
-
-			} else if (type == "insertion") {
-				groups <- extract.groups(body,"(\\d+)([+-]\\d+)?_(\\d+)([+-]\\d+)?ins([ATCG]+)")
-				start <- as.integer(groups[[1]])
-				intronOffset <- as.integer(groups[[2]])
-				end <- as.integer(groups[[3]])
-				intronOffset2 <- as.integer(groups[[4]])
-				variant <- groups[[5]]
-				return(list(hgvs=s,subject=subject,type=type,start=start,startIntron=intronOffset,
-					end=end,endIntron=intronOffset2,variant=variant))
-
-			} else if (type == "conversion") {
-				groups <- extract.groups(body,"(\\d+)([+-]\\d+)?_(\\d+)([+-]\\d+)?con(\\d+)([+-]\\d+)?_(\\d+)([+-]\\d+)?")
-				start <- as.integer(groups[[1]])
-				intronOffset <- as.integer(groups[[2]])
-				end <- as.integer(groups[[3]])
-				intronOffset2 <- as.integer(groups[[4]])
-				tStart <- as.integer(groups[[5]])
-				intronOffset3 <- as.integer(groups[[6]])
-				tEnd <- as.integer(groups[[7]])
-				intronOffset4 <- as.integer(groups[[8]])
-				return(list(hgvs=s,subject=subject,type=type,start=start,startIntron=intronOffset,
-					end=end,endIntron=intronOffset2,templateStart=tStart,
-					templateStartIntron=intronOffset3,templateEnd=tEnd,
-					templateEndIntron=intronOffset4))
-
-			} else if (type == "delins") {
-				groups <- extract.groups(body,"(\\d+)([+-]\\d+)?_(\\d+)([+-]\\d+)?delins([ATCG]+)")
-				start <- as.integer(groups[[1]])
-				intronOffset <- as.integer(groups[[2]])
-				end <- as.integer(groups[[3]])
-				intronOffset2 <- as.integer(groups[[4]])
-				variant <- groups[[5]]
-				return(list(hgvs=s,subject=subject,type=type,start=start,startIntron=intronOffset,
-					end=end,endIntron=intronOffset2,variant=variant))
-
-			} else if (type == "amplification") {
-				groups <- extract.groups(body,"(\\d+)([+-]\\d+)?_(\\d+)([+-]\\d+)?\\[(\\d+)\\]")
-				start <- as.integer(groups[[1]])
-				intronOffset <- as.integer(groups[[2]])
-				end <- as.integer(groups[[3]])
-				intronOffset2 <- as.integer(groups[[4]])
-				copies <- as.integer(groups[[3]])
-				return(list(hgvs=s,subject=subject,type=type,start=start,startIntron=intronOffset,
-					end=end,endIntron=intronOffset2,copies=copies))
-
-			} else {
-				return(list(hgvs=s,type="invalid"))
-			}
+			})
 
 		} else if (subject=="protein") {
 
@@ -310,6 +459,7 @@ parseHGVS <- function(strings,aacode=c(NA,1,3)) {
 			codes <- paste(c(one2three,three2one[-21],"\\*"),collapse="|")
 
 			types <- list(
+				synonymous="^=$",
 				substitution=paste0("^(",codes,")(\\d+)(",codes,")$"),
 				singledeletion=paste0("^(",codes,")(\\d+)del$"),
 				deletion=paste0("^(",codes,")(\\d+)_(",codes,")(\\d+)del$"),
@@ -320,141 +470,218 @@ parseHGVS <- function(strings,aacode=c(NA,1,3)) {
 				frameshift2=paste0("^(",codes,")(\\d+)(",codes,")fs(Ter|\\*)(\\d+)$")
 			)
 			
+			phasing <- attr(subbodies,"multi")
+			isMulti <- length(subbodies) > 1
+			
+			lapply(1:length(subbodies), function(i.multi) {
+				body <- subbodies[[i.multi]]
+
 			type <- findType(body,types)
 
-			if (type == "substitution") {
-				groups <- extract.groups(body,types$substitution)
-				aa1 <- groups[[1]]
-				pos <- as.integer(groups[[2]])
-				aa2 <- groups[[3]]
-				if (aa1 %in% c(one2three,three2one) && aa2 %in% c(one2three,three2one)) {
+				if (type == "synonymous") {
+					if (isMulti) {
+						return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,type=type))
+					} else {
+						return(list(hgvs=s,subject=subject,type=type))
+					}
+				} else if (type == "substitution") {
+					groups <- extract.groups(body,types$substitution)
+					aa1 <- groups[[1]]
+					pos <- as.integer(groups[[2]])
+					aa2 <- groups[[3]]
+					if (aa1 %in% c(one2three,three2one) && aa2 %in% c(one2three,three2one)) {
+						if (is.na(aacode)) {
+							#do nothing
+						} else if (aacode == 1) {
+							if (nchar(aa1) == 3) aa1 <- three2one[[aa1]]
+							if (nchar(aa2) == 3) aa2 <- three2one[[aa2]]
+						} else if (aacode ==3) {
+							if (nchar(aa1) == 1) aa1 <- one2three[[aa1]]
+							if (nchar(aa2) == 1) aa2 <- one2three[[aa2]]
+						} else {
+							#this should never happen, as it's supposed to be detected at start of function
+							stop("Invalid aacode. If you see this, report this as a bug!")
+						}
+						if (isMulti) {
+							return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+								type=type,start=pos,ancestral=aa1,variant=aa2))
+						} else {
+							return(list(hgvs=s,subject=subject,type=type,start=pos,
+							ancestral=aa1,variant=aa2))
+						}
+					} else {#not valid amino acid
+						if (isMulti) {
+							return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+								type="invalid"))
+						} else {
+							return(list(hgvs=s,subject=subject,type="invalid"))
+						}
+					}
+
+				} else if (type == "singledeletion") {
+					groups <- extract.groups(body,types$singledeletion)
+					aa1 <- groups[[1]]
+					pos <- as.integer(groups[[2]])
+					if (is.na(aacode)) {
+						#do nothing
+					} else if (aacode == 1) {
+						if (nchar(aa1) == 3) aa1 <- three2one[[aa1]]
+					} else if (aacode == 3) {
+						if (nchar(aa1) == 1) aa1 <- one2three[[aa1]]
+					} else {
+						#this should never happen, as it's supposed to be detected at start of function
+						stop("Invalid aacode. If you see this, report this as a bug!")
+					}
+					if (isMulti) {
+						return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+							type=type,start=pos,ancestral=aa1))
+					} else {
+						return(list(hgvs=s,subject=subject,type=type,start=pos,ancestral=aa1))
+					}
+				} else if (type == "deletion") {
+					groups <- extract.groups(body,types$deletion)
+					aa1 <- groups[[1]]
+					pos <- as.integer(groups[[2]])
+					aa2 <- groups[[3]]
+					pos2 <- as.integer(groups[[4]])
 					if (is.na(aacode)) {
 						#do nothing
 					} else if (aacode == 1) {
 						if (nchar(aa1) == 3) aa1 <- three2one[[aa1]]
 						if (nchar(aa2) == 3) aa2 <- three2one[[aa2]]
-					} else if (aacode ==3) {
+					} else if (aacode == 3) {
 						if (nchar(aa1) == 1) aa1 <- one2three[[aa1]]
 						if (nchar(aa2) == 1) aa2 <- one2three[[aa2]]
 					} else {
 						#this should never happen, as it's supposed to be detected at start of function
 						stop("Invalid aacode. If you see this, report this as a bug!")
 					}
-					return(list(hgvs=s,subject=subject,type=type,start=pos,
-						ancestral=aa1,variant=aa2))
-				} else {#not valid amino acid
-					return(list(hgvs=s,type="invalid"))
+					if (isMulti) {
+						return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+							type=type,start=pos,ancestral=aa1,end=pos2,ancestral2=aa2))	
+					} else {
+						return(list(hgvs=s,subject=subject,type=type,start=pos,
+							ancestral=aa1,end=pos2,ancestral2=aa2))	
+					}
+
+				} else if (type == "duplication") {
+					groups <- extract.groups(body,types$duplication)
+					aa1 <- groups[[1]]
+					pos <- as.integer(groups[[2]])
+					aa2 <- groups[[3]]
+					pos2 <- as.integer(groups[[4]])
+					if (is.na(aacode)) {
+						#do nothing
+					} else if (aacode == 1) {
+						if (nchar(aa1) == 3) aa1 <- three2one[[aa1]]
+						if (nchar(aa2) == 3) aa2 <- three2one[[aa2]]
+					} else if (aacode == 3) {
+						if (nchar(aa1) == 1) aa1 <- one2three[[aa1]]
+						if (nchar(aa2) == 1) aa2 <- one2three[[aa2]]
+					} else {
+						#this should never happen, as it's supposed to be detected at start of function
+						stop("Invalid aacode. If you see this, report this as a bug!")
+					}
+					if (isMulti) {
+						return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+							type=type,start=pos,ancestral=aa1,end=pos2,ancestral2=aa2))	
+					} else {
+						return(list(hgvs=s,subject=subject,type=type,start=pos,
+							ancestral=aa1,end=pos2,ancestral2=aa2))	
+					}
+
+				} else if (type == "insertion") {
+					groups <- extract.groups(body,types$insertion)
+					aa1 <- groups[[1]]
+					pos <- as.integer(groups[[2]])
+					aa2 <- groups[[3]]
+					pos2 <- as.integer(groups[[4]])
+					insert <- groups[[5]]
+					#TODO: Implement code conversion 
+					if (isMulti) {
+						return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+							type=type,start=pos,ancestral=aa1,end=pos2,ancestral2=aa2,variant=insert))	
+					} else {
+						return(list(hgvs=s,subject=subject,type=type,start=pos,
+							ancestral=aa1,end=pos2,ancestral2=aa2,variant=insert))	
+					}
+
+				} else if (type == "delins") {
+					groups <- extract.groups(body,types$delins)
+					aa1 <- groups[[1]]
+					pos <- as.integer(groups[[2]])
+					aa2 <- groups[[3]]
+					pos2 <- as.integer(groups[[4]])
+					insert <- groups[[5]]
+					#TODO: Implement code conversion 
+					if (isMulti) {
+						return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+							type=type,start=pos,ancestral=aa1,end=pos2,ancestral2=aa2,variant=insert))	
+					} else {
+						return(list(hgvs=s,subject=subject,type=type,start=pos,
+							ancestral=aa1,end=pos2,ancestral2=aa2,variant=insert))	
+					}
+
+				} else if (type == "frameshift1") {
+					groups <- extract.groups(body,types$frameshift1)
+					aa1 <- groups[[1]]
+					pos <- as.integer(groups[[2]])
+					#TODO: Implement code conversion 
+					if (isMulti) {
+						return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+							type="frameshift",start=pos,ancestral=aa1))
+					} else {
+						return(list(hgvs=s,subject=subject,type="frameshift",start=pos,
+							ancestral=aa1))
+					}
+
+				} else if (type == "frameshift2") {
+					groups <- extract.groups(body,types$frameshift2)
+					aa1 <- groups[[1]]
+					pos <- as.integer(groups[[2]])
+					aa2 <- groups[[3]]
+					term <- as.integer(groups[[5]])
+					#TODO: Implement code conversion 
+					if (isMulti) {
+						return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+							type="frameshift",start=pos,ancestral=aa1,variant=aa2,end=term))
+					} else {
+						return(list(hgvs=s,subject=subject,type="frameshift",start=pos,
+							ancestral=aa1,variant=aa2,end=term))
+					}
+
+				} else {#unmatched type
+					if (isMulti) {
+						return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+							type="invalid"))
+					} else {
+						return(list(hgvs=s,subject=subject,type="invalid"))
+					}
 				}
 
-			} else if (type == "singledeletion") {
-				groups <- extract.groups(body,types$singledeletion)
-				aa1 <- groups[[1]]
-				pos <- as.integer(groups[[2]])
-				if (is.na(aacode)) {
-					#do nothing
-				} else if (aacode == 1) {
-					if (nchar(aa1) == 3) aa1 <- three2one[[aa1]]
-				} else if (aacode == 3) {
-					if (nchar(aa1) == 1) aa1 <- one2three[[aa1]]
-				} else {
-					#this should never happen, as it's supposed to be detected at start of function
-					stop("Invalid aacode. If you see this, report this as a bug!")
-				}
-				return(list(hgvs=s,subject=subject,type=type,start=pos,ancestral=aa1))
-			} else if (type == "deletion") {
-				groups <- extract.groups(body,types$deletion)
-				aa1 <- groups[[1]]
-				pos <- as.integer(groups[[2]])
-				aa2 <- groups[[3]]
-				pos2 <- as.integer(groups[[4]])
-				if (is.na(aacode)) {
-					#do nothing
-				} else if (aacode == 1) {
-					if (nchar(aa1) == 3) aa1 <- three2one[[aa1]]
-					if (nchar(aa2) == 3) aa2 <- three2one[[aa2]]
-				} else if (aacode == 3) {
-					if (nchar(aa1) == 1) aa1 <- one2three[[aa1]]
-					if (nchar(aa2) == 1) aa2 <- one2three[[aa2]]
-				} else {
-					#this should never happen, as it's supposed to be detected at start of function
-					stop("Invalid aacode. If you see this, report this as a bug!")
-				}
-				return(list(hgvs=s,subject=subject,type=type,start=pos,
-					ancestral=aa1,end=pos2,ancestral2=aa2))	
-
-			} else if (type == "duplication") {
-				groups <- extract.groups(body,types$duplication)
-				aa1 <- groups[[1]]
-				pos <- as.integer(groups[[2]])
-				aa2 <- groups[[3]]
-				pos2 <- as.integer(groups[[4]])
-				if (is.na(aacode)) {
-					#do nothing
-				} else if (aacode == 1) {
-					if (nchar(aa1) == 3) aa1 <- three2one[[aa1]]
-					if (nchar(aa2) == 3) aa2 <- three2one[[aa2]]
-				} else if (aacode == 3) {
-					if (nchar(aa1) == 1) aa1 <- one2three[[aa1]]
-					if (nchar(aa2) == 1) aa2 <- one2three[[aa2]]
-				} else {
-					#this should never happen, as it's supposed to be detected at start of function
-					stop("Invalid aacode. If you see this, report this as a bug!")
-				}
-				return(list(hgvs=s,subject=subject,type=type,start=pos,
-					ancestral=aa1,end=pos2,ancestral2=aa2))	
-
-			} else if (type == "insertion") {
-				groups <- extract.groups(body,types$insertion)
-				aa1 <- groups[[1]]
-				pos <- as.integer(groups[[2]])
-				aa2 <- groups[[3]]
-				pos2 <- as.integer(groups[[4]])
-				insert <- groups[[5]]
-				#TODO: Implement code conversion 
-				return(list(hgvs=s,subject=subject,type=type,start=pos,
-					ancestral=aa1,end=pos2,ancestral2=aa2,variant=insert))	
-
-			} else if (type == "delins") {
-				groups <- extract.groups(body,types$delins)
-				aa1 <- groups[[1]]
-				pos <- as.integer(groups[[2]])
-				aa2 <- groups[[3]]
-				pos2 <- as.integer(groups[[4]])
-				insert <- groups[[5]]
-				#TODO: Implement code conversion 
-				return(list(hgvs=s,subject=subject,type=type,start=pos,
-					ancestral=aa1,end=pos2,ancestral2=aa2,variant=insert))	
-
-			} else if (type == "frameshift1") {
-				groups <- extract.groups(body,types$frameshift1)
-				aa1 <- groups[[1]]
-				pos <- as.integer(groups[[2]])
-				#TODO: Implement code conversion 
-				return(list(hgvs=s,subject=subject,type="frameshift",start=pos,ancestral=aa1))
-
-			} else if (type == "frameshift2") {
-				groups <- extract.groups(body,types$frameshift2)
-				aa1 <- groups[[1]]
-				pos <- as.integer(groups[[2]])
-				aa2 <- groups[[3]]
-				term <- as.integer(groups[[5]])
-				#TODO: Implement code conversion 
-				return(list(hgvs=s,subject=subject,type="frameshift",start=pos,ancestral=aa1,variant=aa2,end=term))
-
-			} else {#unmatched type
-				return(list(hgvs=s,type="invalid"))
-			}
-
+			})
 
 		} else if (subject=="noncoding") {
-			return("Not implemented! If you see this, report it as a bug!")
+			#FIXME: These need to be list of lists to match postprocessing
+			return(list(list(hgvs=s,subject="not_implemented",type="not_implemented")))
 		} else if (subject=="mitochondrial") {
-			return("Not implemented! If you see this, report it as a bug!")
+			return(list(list(hgvs=s,subject="not_implemented",type="not_implemented")))
 		} else if (subject=="rna") {
-			return("Not implemented! If you see this, report it as a bug!")
+			return(list(list(hgvs=s,subject="not_implemented",type="not_implemented")))
 		} else {#unmatched subject, shouldn't happen
 			stop("Unmatched subject! If you see this, report it as a bug!")
 		}
 	})
-	to.df(out)
+
+	#demote multimutants to enforce simple list structure
+	multiLengths <- sapply(out,length)
+	ids <- do.call(c,lapply(1:length(multiLengths),
+		function(i) if (multiLengths[[i]]==1) as.character(i) else paste0(i,".",1:multiLengths[[i]])
+	))
+	out2 <- do.call(c,out)
+	names(out2) <- ids
+
+
+
+	to.df(out2)
 }

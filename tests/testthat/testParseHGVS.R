@@ -3,7 +3,7 @@ library(hgvsParseR)
 context("Parsing HGVS strings")
 
 
-test_that("parsing common HGVS strings", {
+test_that("common HGVS strings are parsed correctly", {
 
 	common.hgvs.strings <- c(
 		"g.1318G>T","g.3661_3706del","g.495_499inv","g.3661_3706dup",
@@ -12,7 +12,8 @@ test_that("parsing common HGVS strings", {
 		"c.7339_7340insTAGG","c.112_117delinsTG",
 		"p.Arg490Ser","p.R490S","p.Trp87Ter","p.Trp78*","p.W87*","p.Asp388del",
 		"p.Asp388_Gln393del","p.Asp388_Gln393dup","p.Ala228_Val229insTrpPro",
-		"p.Ala228_Val229insLys*","p.L7_H8delinsWQQFRTG","p.Arg98fs","p.Arg98Profs*23"
+		"p.Ala228_Val229insLys*","p.L7_H8delinsWQQFRTG","p.Arg98fs","p.Arg98Profs*23",
+		"p.="
 	)
 
 	result <- parseHGVS(common.hgvs.strings)
@@ -25,9 +26,38 @@ test_that("parsing common HGVS strings", {
 	# expect_equal(str_length("abc"), 3)
 })
 
+test_that("multi-mutant HGVS strings are parsed correctly", {
+
+	multi.hgvs.strings <- c(
+		"c.[76C>T;283G>C]","c.[76C>T];[283G>C]","c.[76C>T(;)283G>C]",
+		"c.[76C>T;133_134insTAGG]"
+	)
+
+	result <- parseHGVS(multi.hgvs.strings)
+
+	cat("\n")
+	print(result)
+
+})
+
+test_that("multi-mutants are distinguished correctly from single mutants", {
+
+	mixed.hgvs.strings <- c(
+		"c.[76C>T;283G>C]",
+		"c.495_499inv",#mix in a single mutant to test
+		"c.[76C>T;133_134insTAGG]"
+	)
+
+	result <- parseHGVS(mixed.hgvs.strings)
+
+	cat("\n")
+	print(result)
+
+})
 
 
-test_that("conversion between AA codes", {
+
+test_that("conversion between AA codes works", {
 
 	hgvs.strings <- c(
 		"p.Arg490Ser","p.R490S","p.Trp87Ter","p.Trp78*","p.W87*"
@@ -41,12 +71,27 @@ test_that("conversion between AA codes", {
 	cat("\n")
 	print(result)
 
-	# expect_equal(str_length("a"), 1)
-	# expect_equal(str_length("ab"), 2)
-	# expect_equal(str_length("abc"), 3)
 })
 
-# test_that("parsing exotic HGVS strings", {
+
+test_that("invalid strings get marked correctly", {
+
+	hgvs.strings <- c(
+		"p.Arg490Ser","x.R490S","pTrp87Ter","p.Trp7&8*","r.1318g>u"
+	)
+
+	result <- parseHGVS(hgvs.strings,aacode=1)
+	cat("\n")
+	print(result)
+
+	result <- parseHGVS(hgvs.strings,aacode=3)
+	cat("\n")
+	print(result)
+
+})
+
+
+# test_that("exotic HGVS strings are parsed correctly", {
 
 # 	exotic.hgvs.strings <- c(
 # 		"g.1318G>T","g.3661_3706del","g.495_499inv","g.3661_3706dup",
