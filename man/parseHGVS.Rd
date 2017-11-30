@@ -4,7 +4,7 @@
 \alias{parseHGVS}
 \title{HGVS Parser}
 \usage{
-parseHGVS(strings, aacode = c(1, 3, NA))
+parseHGVS(strings, aacode = c(NA, 1, 3))
 }
 \arguments{
 \item{strings}{A character vector containing the HGVS strings}
@@ -18,7 +18,7 @@ A \code{data.frame} with the following columns:
 Parses HGVS strings
 }
 \examples{
-parseHGVS("g.1318G>T")
+result <- parseHGVS(c("g.1318G>T","c.123_125inv","p.R123_L152del"))
 }
 \keyword{HGVS}
 \keyword{parsing}

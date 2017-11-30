@@ -8,7 +8,7 @@
 #' @keywords HGVS parsing
 #' @export
 #' @examples
-#' parseHGVS("g.1318G>T")
+#' result <- parseHGVS(c("g.1318G>T","c.123_125inv","p.R123_L152del"))
 
 parseHGVS <- function(strings,aacode=c(NA,1,3)) {
 
