@@ -36,7 +36,21 @@ test_that("genomic strings are built correctly", {
 	result <- builder$delins(123,125,"ACTTG")
 	expect_equal(expected, result)
 	print(result)
+
+	expected <- "g.[123A>C;231G>A]"
+	result <- with(builder,cis(substitution(123,"A","C"),substitution(231,"G","A")))
+	expect_equal(expected,result)
+	print(result)
 	
+	expected <- "g.[123A>C];[231G>A];[311_320del]"
+	result <- with(builder,trans(substitution(123,"A","C"),substitution(231,"G","A"),deletion(311,320)))
+	expect_equal(expected,result)
+	print(result)
+
+	expected <- "g.[123A>C(;)231G>A]"
+	result <- with(builder,nophase(substitution(123,"A","C"),substitution(231,"G","A")))
+	expect_equal(expected,result)
+	print(result)
 })
 
 
@@ -88,6 +102,20 @@ test_that("coding strings are built correctly", {
 	expect_equal(expected, result)
 	print(result)
 	
+	expected <- "c.[123A>C;231G>A]"
+	result <- with(builder,cis(substitution(123,"A","C"),substitution(231,"G","A")))
+	expect_equal(expected,result)
+	print(result)
+	
+	expected <- "c.[123A>C];[231G>A];[311_320del]"
+	result <- with(builder,trans(substitution(123,"A","C"),substitution(231,"G","A"),deletion(311,320)))
+	expect_equal(expected,result)
+	print(result)
+
+	expected <- "c.[123A>C(;)231G>A]"
+	result <- with(builder,nophase(substitution(123,"A","C"),substitution(231,"G","A")))
+	expect_equal(expected,result)
+	print(result)
 })
 
 
@@ -129,4 +157,10 @@ test_that("protein strings are built correctly", {
 	result <- builder$frameshift(123,"Arg",variantAA="Lys",newStop=201)
 	expect_equal(expected, result)
 	print(result)
+
+	expected <- "p.[R123K;S125_L152del]"
+	result <- with(builder,cis(substitution(123,"R","K"),deletion(125,"S",152,"L")))
+	expect_equal(expected,result)
+	print(result)
+	
 })

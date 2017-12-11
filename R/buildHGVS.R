@@ -19,6 +19,12 @@
 #'    the insertion (integer); seq = inserted nucleotide sequence [ACGT]+
 #' 	\item{delins(start,stop,variant)} Genomic deletion and insertion. start = start position (integer); 
 #'    stop = stop position relative to the reference (integer); seq = inserted nucleotide sequence [ACGT]+
+#'  \item{cis(...)} Multi-variant phased in cis. Parameters are genomic HGVS strings for the 
+#'    corresponding single mutants
+#'  \item{trans(...)} Multi-variant phased in trans. Parameters are genomic HGVS strings for the 
+#'    corresponding single mutants
+#'  \item{nophase(...)} Multi-variant with unknown phasing. Parameters are genomic HGVS strings for the 
+#'    corresponding single mutants
 #' }
 #' 
 #' @return A \code{hgvs.builder.g} object with functions for building genomic HGVS strings. 
@@ -29,6 +35,7 @@
 #' builder <- new.hgvs.builder.g()
 #' string1 <- builder$substitution(123,"A","G")
 #' string2 <- builder$delins(123,129,"ATTG")
+#' string3 <- with(builder,cis(substitution(123,"A","C"),substitution(231,"G","A")))
 
 new.hgvs.builder.g <- function() {
 
@@ -74,13 +81,43 @@ new.hgvs.builder.g <- function() {
 		paste0("g.",start,"_",stop,"delins",seq)
 	}
 
+	cis <- function(...) {
+		strings <- list(...)
+		if (!all(sapply(strings,is.character))) stop("all arguments must be HGVS strings")
+		strings <- unlist(strings)
+		if (!all(substr(strings,1,2)=="g.")) stop("all arguments must be genomic HGVS strings")
+		bodies <- substr(strings,3,nchar(strings))
+		paste0("g.[",paste(bodies,collapse=";"),"]")
+	}
+
+	trans <- function(...) {
+		strings <- list(...)
+		if (!all(sapply(strings,is.character))) stop("all arguments must be HGVS strings")
+		strings <- unlist(strings)
+		if (!all(substr(strings,1,2)=="g.")) stop("all arguments must be genomic HGVS strings")
+		bodies <- substr(strings,3,nchar(strings))
+		paste0("g.[",paste(bodies,collapse="];["),"]")
+	}
+
+	nophase <- function(...) {
+		strings <- list(...)
+		if (!all(sapply(strings,is.character))) stop("all arguments must be HGVS strings")
+		strings <- unlist(strings)
+		if (!all(substr(strings,1,2)=="g.")) stop("all arguments must be genomic HGVS strings")
+		bodies <- substr(strings,3,nchar(strings))
+		paste0("g.[",paste(bodies,collapse="(;)"),"]")
+	}
+
 	return(structure(list(
 		substitution=substitution,
 		deletion=deletion,
 		inversion=inversion,
 		duplication=duplication,
 		insertion=insertion,
-		delins=delins
+		delins=delins,
+		cis=cis,
+		trans=trans,
+		nophase=nophase
 	),class="hgvs.builder.g"))
 }
 
@@ -121,9 +158,15 @@ print.hgvs.builder.g <- function() {
 #'    seq = inserted nucleotide sequence [ACGT]+ ; startOffset = offset from the start position when
 #'    crossing exon-intron borders (integer, defaults to 0); stopOffset = offset from the 
 #'    stop position when crossing exon-intron borders (integer, defaults to 0)
+#'  \item{cis(...)} Multi-variant phased in cis. Parameters are coding HGVS strings for the 
+#'    corresponding single mutants
+#'  \item{trans(...)} Multi-variant phased in trans. Parameters are coding HGVS strings for the 
+#'    corresponding single mutants
+#'  \item{nophase(...)} Multi-variant with unknown phasing. Parameters are coding HGVS strings for the 
+#'    corresponding single mutants
 #' }
 #' 
-#' @return A \code{hgvs.builder.c} object with functions for building genomic HGVS strings. 
+#' @return A \code{hgvs.builder.c} object with functions for building coding HGVS strings. 
 #'   The individual functions return single-element character vectors containing these strings.
 #' @keywords HGVS builder
 #' @export
@@ -131,6 +174,7 @@ print.hgvs.builder.g <- function() {
 #' builder <- new.hgvs.builder.c()
 #' string1 <- builder$substitution(123,"A","G",posOffset=2)
 #' string2 <- builder$delins(123,129,"ATTG")
+#' string3 <- with(builder,cis(substitution(123,"A","C"),substitution(231,"G","A")))
 
 new.hgvs.builder.c <- function() {
 
@@ -200,13 +244,43 @@ new.hgvs.builder.c <- function() {
 		paste0("c.",start,offsetStr(startOffset),"_",stop,offsetStr(stopOffset),"delins",seq)
 	}
 
+	cis <- function(...) {
+		strings <- list(...)
+		if (!all(sapply(strings,is.character))) stop("all arguments must be HGVS strings")
+		strings <- unlist(strings)
+		if (!all(substr(strings,1,2)=="c.")) stop("all arguments must be coding HGVS strings")
+		bodies <- substr(strings,3,nchar(strings))
+		paste0("c.[",paste(bodies,collapse=";"),"]")
+	}
+
+	trans <- function(...) {
+		strings <- list(...)
+		if (!all(sapply(strings,is.character))) stop("all arguments must be HGVS strings")
+		strings <- unlist(strings)
+		if (!all(substr(strings,1,2)=="c.")) stop("all arguments must be coding HGVS strings")
+		bodies <- substr(strings,3,nchar(strings))
+		paste0("c.[",paste(bodies,collapse="];["),"]")
+	}
+
+	nophase <- function(...) {
+		strings <- list(...)
+		if (!all(sapply(strings,is.character))) stop("all arguments must be HGVS strings")
+		strings <- unlist(strings)
+		if (!all(substr(strings,1,2)=="c.")) stop("all arguments must be coding HGVS strings")
+		bodies <- substr(strings,3,nchar(strings))
+		paste0("c.[",paste(bodies,collapse="(;)"),"]")
+	}
+
 	return(structure(list(
 		substitution=substitution,
 		deletion=deletion,
 		inversion=inversion,
 		duplication=duplication,
 		insertion=insertion,
-		delins=delins
+		delins=delins,
+		cis=cis,
+		trans=trans,
+		nophase=nophase
 	),class="hgvs.builder.c"))
 }
 
@@ -251,6 +325,9 @@ print.hgvs.builder.c <- function() {
 #'    given in one-letter or three-letter code, or \code{NA} to omit (default);
 #'    newStop = the position of the nearest coding resulting from the frameshift, 
 #'    or \code{NA} to omit (default).
+#'  \item{cis(...)} Multi-variant phased in cis. Parameters are coding HGVS strings for the 
+#'    corresponding single mutants. As phasing in trans would be nonsensical in a protein context,
+#'    the \code{trans()} and \code{nophase()} methods are not provided here.
 #' }
 #' 
 #' @return A \code{hgvs.builder.g} object with functions for building genomic HGVS strings. 
@@ -261,6 +338,8 @@ print.hgvs.builder.c <- function() {
 #' builder <- new.hgvs.builder.g()
 #' string1 <- builder$substitution(123,"R","K")
 #' string2 <- builder$delins(123,"Arg",152,"Leu",c("Lys","Trp","Ser"))
+#' string3 <- with(builder,cis(substitution(123,"R","K"),deletion(125,"S",152,"L")))
+
 
 new.hgvs.builder.p <- function(aacode=c(1,3)) {
 
@@ -387,6 +466,15 @@ new.hgvs.builder.p <- function(aacode=c(1,3)) {
 		paste0("p.",startAA,startPos,variantAA,"fs",newStop)
 	}
 	
+	cis <- function(...) {
+		strings <- list(...)
+		if (!all(sapply(strings,is.character))) stop("all arguments must be HGVS strings")
+		strings <- unlist(strings)
+		if (!all(substr(strings,1,2)=="p.")) stop("all arguments must be protein HGVS strings")
+		bodies <- substr(strings,3,nchar(strings))
+		paste0("p.[",paste(bodies,collapse=";"),"]")
+	}
+
 	return(structure(list(
 		synonymous=synonymous,
 		substitution=substitution,
@@ -394,6 +482,7 @@ new.hgvs.builder.p <- function(aacode=c(1,3)) {
 		duplication=duplication,
 		insertion=insertion,
 		delins=delins,
-		frameshift=frameshift
+		frameshift=frameshift,
+		cis=cis
 	),class="hgvs.builder.p"))
 }
