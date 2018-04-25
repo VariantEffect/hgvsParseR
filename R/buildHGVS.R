@@ -298,6 +298,8 @@ print.hgvs.builder.c <- function() {
 #' The resulting object encapsulates the following functions:
 #' \itemize{
 #'  \item{synonymous()} A synonymous variant. No parameters required.
+#'  \item{synonymous(pos,ancestral)} Unofficial (yet frequently used) version of synonymous variant syntax. 
+#'    pos = position (integer); ancestral = ancestral amino acid in one-letter or three-letter code.
 #' 	\item{substitution(pos,ancestral,variant)} AA substitution variants. 
 #'    pos = position (integer); ancestral = ancestral amino acid in one-letter or three-letter code; 
 #'    variant = variant amino acid in one-letter or three-letter code
