@@ -162,5 +162,15 @@ test_that("protein strings are built correctly", {
 	result <- with(builder,cis(substitution(123,"R","K"),deletion(125,"S",152,"L")))
 	expect_equal(expected,result)
 	print(result)
+
+	expected <- "p.R123="
+	result <- builder$synonymous(123,"Arg")
+	expect_equal(expected,result)
+	print(result)
 	
+	expected <- "p.="
+	result <- builder$synonymous()
+	expect_equal(expected,result)
+	print(result)
+
 })

@@ -373,8 +373,14 @@ new.hgvs.builder.p <- function(aacode=c(1,3)) {
 		}
 	}
 
-	synonymous <- function() {
-		return("p.=")
+	synonymous <- function(pos=NULL,ancestral=NULL) {
+		if (is.null(pos) || is.null(ancestral)) {
+			return("p.=")
+		}
+		if (!is.numeric(pos) || pos < 1) stop("position must be a positive integer")
+		if (!is.character(ancestral) || !(ancestral %in% c(one2three,three2one))) stop("ancestral must be single amimo acid")
+		ancestral <- enforceCode(ancestral)
+		paste0("p.",ancestral,pos,"=")
 	}
 
 	substitution <- function(pos,ancestral,variant) {

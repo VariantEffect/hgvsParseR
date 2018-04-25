@@ -459,7 +459,8 @@ parseHGVS <- function(strings,aacode=c(NA,1,3)) {
 			codes <- paste(c(one2three,three2one[-21],"\\*"),collapse="|")
 
 			types <- list(
-				synonymous="^=$",
+				synonymous1="^=$",
+				synonymous2=paste0("^(",codes,")(\\d+)=$"),
 				substitution=paste0("^(",codes,")(\\d+)(",codes,")$"),
 				singledeletion=paste0("^(",codes,")(\\d+)del$"),
 				deletion=paste0("^(",codes,")(\\d+)_(",codes,")(\\d+)del$"),
@@ -478,11 +479,41 @@ parseHGVS <- function(strings,aacode=c(NA,1,3)) {
 
 			type <- findType(body,types)
 
-				if (type == "synonymous") {
+				if (type == "synonymous1") {
 					if (isMulti) {
 						return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,type=type))
 					} else {
-						return(list(hgvs=s,subject=subject,type=type))
+						return(list(hgvs=s,subject=subject,type="synonymous"))
+					}
+				} else if (type == "synonymous2") {
+					groups <- extract.groups(body,types$synonymous2)
+					aa1 <- groups[[1]]
+					pos <- as.integer(groups[[2]])
+					if (aa1 %in% c(one2three,three2one)) {
+						if (is.na(aacode)) {
+							#do nothing
+						} else if (aacode == 1) {
+							if (nchar(aa1) == 3) aa1 <- three2one[[aa1]]
+						} else if (aacode ==3) {
+							if (nchar(aa1) == 1) aa1 <- one2three[[aa1]]
+						} else {
+							#this should never happen, as it's supposed to be detected at start of function
+							stop("Invalid aacode. If you see this, report this as a bug!")
+						}
+						if (isMulti) {
+							return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+								type="synonymous",start=pos,ancestral=aa1))
+						} else {
+							return(list(hgvs=s,subject=subject,type="synonymous",start=pos,
+							ancestral=aa1))
+						}
+					} else {#not valid amino acid
+						if (isMulti) {
+							return(list(hgvs=s,subject=subject,phasing=phasing,multiPart=i.multi,
+								type="invalid"))
+						} else {
+							return(list(hgvs=s,subject=subject,type="invalid"))
+						}
 					}
 				} else if (type == "substitution") {
 					groups <- extract.groups(body,types$substitution)

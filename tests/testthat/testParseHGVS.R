@@ -13,7 +13,7 @@ test_that("common HGVS strings are parsed correctly", {
 		"p.Arg490Ser","p.R490S","p.Trp87Ter","p.Trp78*","p.W87*","p.Asp388del",
 		"p.Asp388_Gln393del","p.Asp388_Gln393dup","p.Ala228_Val229insTrpPro",
 		"p.Ala228_Val229insLys*","p.L7_H8delinsWQQFRTG","p.Arg98fs","p.Arg98Profs*23",
-		"p.="
+		"p.=","p.Arg12=","p.M15="
 	)
 
 	result <- parseHGVS(common.hgvs.strings)
