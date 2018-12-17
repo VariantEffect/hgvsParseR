@@ -49,21 +49,21 @@ new.hgvs.builder.g <- function() {
 	deletion <- function(start,stop) {
 		if (!is.numeric(start)) stop("start must be an integer")
 		if (!is.numeric(stop)) stop("stop must be an integer")
-		if (start >= stop) stop("start must be upstream of stop")
+		if (start > stop) stop("start must be upstream of stop")
 		paste0("g.",start,"_",stop,"del")
 	}
 
 	inversion <- function(start,stop) {
 		if (!is.numeric(start)) stop("start must be an integer")
 		if (!is.numeric(stop)) stop("stop must be an integer")
-		if (start >= stop) stop("start must be upstream of stop")
+		if (start > stop) stop("start must be upstream of stop")
 		paste0("g.",start,"_",stop,"inv")
 	}
 
 	duplication <- function(start,stop) {
 		if (!is.numeric(start)) stop("start must be an integer")
 		if (!is.numeric(stop)) stop("stop must be an integer")
-		if (start >= stop) stop("start must be upstream of stop")
+		if (start > stop) stop("start must be upstream of stop")
 		paste0("g.",start,"_",stop,"dup")
 	}
 
@@ -76,7 +76,7 @@ new.hgvs.builder.g <- function() {
 	delins <- function(start,stop,seq) {
 		if (!is.numeric(start)) stop("start must be an integer")
 		if (!is.numeric(stop)) stop("stop must be an integer")
-		if (start >= stop) stop("start must be upstream of stop")
+		if (start > stop) stop("start must be upstream of stop")
 		if (!is.character(seq) || regexpr("^[ACGT]+$",seq) < 1) stop("variant must be nucleotide sequence")
 		paste0("g.",start,"_",stop,"delins",seq)
 	}
@@ -201,7 +201,7 @@ new.hgvs.builder.c <- function() {
 		if (!is.numeric(stop)) stop("stop must be an integer")
 		if (!is.numeric(startOffset)) stop("offset must be an integer")
 		if (!is.numeric(stopOffset)) stop("offset must be an integer")
-		if (start+startOffset >= stop+stopOffset) stop("start must be before stop")
+		if (start+startOffset > stop+stopOffset) stop("start must be before stop")
 		paste0("c.",start,offsetStr(startOffset),"_",stop,offsetStr(stopOffset),"del")
 	}
 
@@ -219,7 +219,7 @@ new.hgvs.builder.c <- function() {
 		if (!is.numeric(stop)) stop("stop must be an integer")
 		if (!is.numeric(startOffset)) stop("offset must be an integer")
 		if (!is.numeric(stopOffset)) stop("offset must be an integer")
-		if (start+startOffset >= stop+stopOffset) stop("start must be before stop")
+		if (start+startOffset > stop+stopOffset) stop("start must be before stop")
 		paste0("c.",start,offsetStr(startOffset),"_",stop,offsetStr(stopOffset),"dup")
 	}
 
@@ -239,7 +239,7 @@ new.hgvs.builder.c <- function() {
 		if (!is.numeric(stop)) stop("stop must be an integer")
 		if (!is.numeric(startOffset)) stop("offset must be an integer")
 		if (!is.numeric(stopOffset)) stop("offset must be an integer")
-		if (start+startOffset >= stop+stopOffset) stop("start must be before stop")
+		if (start+startOffset > stop+stopOffset) stop("start must be before stop")
 		if (!is.character(seq) || regexpr("^[ACGT]+$",seq) < 1) stop("variant must be nucleotide sequence")
 		paste0("c.",start,offsetStr(startOffset),"_",stop,offsetStr(stopOffset),"delins",seq)
 	}
