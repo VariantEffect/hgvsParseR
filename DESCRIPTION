@@ -1,6 +1,6 @@
 Package: hgvsParseR
 Title: Parse HGVS variant descriptor strings
-Version: 0.0.0.9000
+Version: 0.1.0
 Authors@R: person("Jochen", "Weile", email = "jochenweile@gmail.com", role = c("aut", "cre"))
 Description: Parses genetic variant descriptor scripts in the HGVS format.
 Depends: R (>= 3.1.2)
